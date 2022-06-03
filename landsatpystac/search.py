@@ -2,6 +2,8 @@
 import requests
 from typing import Union
 
+import geopandas as gpd
+
 from landsatpystac.validators import check_if_int, check_if_string
 from landsatpystac.errors import SearchError
 
@@ -32,6 +34,7 @@ class JsonConstructor:
         self._collection = None
         self._platform = None
         self._manual_json_params = {}
+        self._bbox = None
 
         # Properties that don't need error checking
         self._id = None
@@ -49,8 +52,13 @@ class JsonConstructor:
         written by the `set_metadata` method.
 
         """
+        # Generate JSON step by step
+        json_out = {'limit': self._limit}
+        if self._bbox:
+            json_out['bbox'] = self._bbox
         query_label = 'query'
-        json_out = {query_label: {}, 'limit': self._limit}
+        json_out[query_label] = {}
+
         if self._manual_json_params:
             for k, v in self._manual_json_params.items():
                 json_out[query_label][k] = v
@@ -97,6 +105,14 @@ class JsonConstructor:
             self.json[k] = v
             # Save metadata in self._manual_json_params attr
             self._manual_json_params[k] = v
+
+    @property
+    def bbox(self):
+        return self._bbox
+
+    @bbox.setter
+    def bbox(self, val):
+        self._bbox = val
 
     @property
     def collection(self):
@@ -251,7 +267,8 @@ class Search:
 
     def __init__(self, limit=10, cloud_cover_max=100, wrs_path=None,
         wrs_row=None, image_shape=None, collection='landsat-c2l1',
-        scene_id=None, id=None, platform='LANDSAT_9', **kwargs
+        scene_id=None, id=None, platform='LANDSAT_9', bbox_vector_path=None,
+        **kwargs
         ) -> None:
         """
         Instantiate a search object with the required search parameters.
@@ -275,6 +292,15 @@ class Search:
             self.json_handler.scene_id = scene_id
         if id:
             self.json_handler.id = id
+        if bbox_vector_path:
+            df = gpd.read_file(bbox_vector_path)
+            bounds = df.bounds.iloc[0]
+            self.json_handler.bbox = [
+                bounds['minx'],
+                bounds['miny'],
+                bounds['maxx'],
+                bounds['maxy']
+            ]
         if image_shape:
             self.json_handler.image_shape = image_shape
 
