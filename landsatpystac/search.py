@@ -34,7 +34,7 @@ class JsonConstructor:
         self._manual_json_params = {}
 
         # Properties that don't need error checking
-        self.id = None
+        self._id = None
         self.scene_id = None
 
     def generate_json(self):
@@ -50,7 +50,7 @@ class JsonConstructor:
 
         """
         query_label = 'query'
-        json_out = {query_label: {}}
+        json_out = {query_label: {}, 'limit': self._limit}
         if self._manual_json_params:
             for k, v in self._manual_json_params.items():
                 json_out[query_label][k] = v
@@ -108,6 +108,20 @@ class JsonConstructor:
         if val not in valid:
             raise SearchError(f'Collection "{val}" not a valid collection.')
         self._collection = val
+
+    @property
+    def id(self):
+        return self._id
+
+    @id.setter
+    def id(self, val):
+        """
+        Set Landsat ID search param.
+        Sample ID: 'LC80300292022145LGN00'
+
+        """
+        self._id = val
+        self.params['landsat:scene_id'] = {'eq': val}
 
     @property
     def platform(self):
