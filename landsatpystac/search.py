@@ -267,7 +267,7 @@ class Search:
 
     def __init__(self, limit=10, cloud_cover_max=100, wrs_path=None,
         wrs_row=None, image_shape=None, collection='landsat-c2l1',
-        scene_id=None, id=None, platform='LANDSAT_9', bbox_vector_path=None,
+        scene_id=None, id=None, platform='LANDSAT_9', bbox=None,
         **kwargs
         ) -> None:
         """
@@ -292,15 +292,21 @@ class Search:
             self.json_handler.scene_id = scene_id
         if id:
             self.json_handler.id = id
-        if bbox_vector_path:
-            df = gpd.read_file(bbox_vector_path)
-            bounds = df.bounds.iloc[0]
-            self.json_handler.bbox = [
-                bounds['minx'],
-                bounds['miny'],
-                bounds['maxx'],
-                bounds['maxy']
-            ]
+        if bbox:
+            if isinstance(bbox, str):
+                df = gpd.read_file(bbox)
+                bounds = df.bounds.iloc[0]
+                self.json_handler.bbox = [
+                    bounds['minx'],
+                    bounds['miny'],
+                    bounds['maxx'],
+                    bounds['maxy']
+                ]
+            elif isinstance(bbox, list):
+                self.json_handler.bbox = bbox
+            else:
+                raise ValueError('Unsupported input data for "bbox".')
+
         if image_shape:
             self.json_handler.image_shape = image_shape
 
