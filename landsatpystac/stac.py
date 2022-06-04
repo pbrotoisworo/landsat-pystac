@@ -19,51 +19,119 @@ class STACResult:
         self.thumbnail_small_urls = {}
         self.thumbnail_large_urls = {}
         self.s3_urls = {}
-        self._load_stac_results()
 
-    def _load_stac_results(self):
-        """
-        Interpret the STAC results and store them in class attributes.
-        """
-        # Load platform name(s)
-        self.platform = [x['properties']['platform'] for x in self.result['features']]
-        if len(set(self.platform)) == 1:
-            self.platform = self.platform[0]
-        
-        # Load a list of scene ids that were returned by the query
-        self.scene_ids = [x['properties']['landsat:scene_id'] for x in self.result['features']]
+        # Load scene IDs
+        # These scene IDs will be used for other class methods
+        self.scene_ids = [x['properties']['landsat:scene_id'] for x in result['features']]
         self.ids = [x['id'] for x in self.result['features']]
 
-        ######################
-        # Load asset data
-        ######################
+
+class Feature:
+
+    def __init__(self, feature):
+        """
+        Parse individual scenes (labelled as "feature") in a feature
+        collection from a STACResult.
+
+        """
+        self._feature = feature
         
-        # Get S3 paths
-        # Iterate through feature and check platform name first
-        for item in self.result['features']:
-            feature = item
+        # Attributes
+        self.description = self._feature['description']
+        self.bbox = self._feature['bbox']
+        self.geometry = self._feature['geometry']
+        self.timestamp = self._get_property('datetime')
+        self.cloud_cover = self._get_property('eo:cloud_cover')
+        self.sun_azimuth = self._get_property('view:sun_azimuth')
+        self.sun_elevation = self._get_property('view:sun_elevation')
+        self.platform = self._get_property('platform')
+        self.instruments = self._get_property('instruments')
+        self.off_nadir = self._get_property('view:off_nadir')
+        self.cloud_cover_land = self._get_property('landsat:cloud_cover_land')
+        self.wrs_type = self._get_property('landsat:wrs_type')
+        self.wrs_row = self._get_property('landsat:wrs_row')
+        self.wrs_path = self._get_property('landsat:wrs_path')
+        self.scene_id = self._get_property('landsat:scene_id')
+        self.collection_category = self._get_property('landsat:collection_category')
+        self.collection_number = self._get_property('landsat:collection_number')
+        self.correction = self._get_property('landsat:correction')
+        self.epsg = self._get_property('proj:epsg')
+        self.shape = self._get_property('proj:shape')
+        self.coeff_list = []
+        self.coeff_names = {}
+        self.qa_list = []
+        self.qa_names = []
+        self.band_list = []
+        self.band_names = {}
+        self.s3_tiff_paths = {}
+        self.s3_metadata_paths = {}
+        self.s3_qa_paths = {}
+        self.s3_coeff_paths = {}
+        self.landsatlook_tiff_paths = {}
+        self.landsatlook_metadata_paths = {}
+        self.landsatlook_qa_paths = {}
+        self.landsatlook_coeff_paths = {}
+        self.thumbnail = None
+        self.metadata_txt_path = None
+        self.metadata_xml_path = None
+        self.metadata_json_path = None
+        self.load_assets()
 
-            # Get ID
-            id = feature['id']
+    def _get_property(self, attribute: str) -> str:
+        """
+        Helper function to get image properties.
+
+        Parameters
+        ----------
+        attribute: str
+            Name of property to load.
+
+        """
+        return self._feature['properties'][attribute]
+
+    def load_assets(self):
+        """
+        Load STAC data that requires a bit more logic to parse.
+
+        """
+
+        mtl_files = ['MTL.txt', 'MTL.json', 'MTL.xml', 'ANG.txt']
+        coeff_files = ['VAA', 'VZA', 'SAA', 'SZA']
+
+        # Load band list and S3 path
+        for asset in self._feature['assets']:
             
-            platform = feature['properties']['platform']
-            if platform in ['LANDSAT_9', 'LANDSAT_8']:
-                bands = [
-                    'coastal', 'blue', 'green', 'red', 'nir08',
-                    'swir16', 'swir22', 'pan', 'cirrus', 'lwir11',
-                    'lwir12'
-                ]
-            else:
-                raise ValueError(f'Unknown platform name: "{self.platform}"')
+            if asset in coeff_files:
+                self.coeff_list.append(self._feature['assets'][asset])
+                self.coeff_names[asset] = self._feature['assets'][asset]['title']
+                self.s3_coeff_paths[asset] = self._feature['assets'][asset]['alternate']['s3']['href']
+                self.landsatlook_coeff_paths[asset] = self._feature['assets'][asset]['href']
 
-            # Build S3 list
-            self.s3_urls[id] = {}
-            for band in bands:
-                self.s3_urls[id][band] = feature['assets'][band]['alternate']['s3']['href']
+            if asset in mtl_files:
+                self.s3_metadata_paths[asset] = self._feature['assets'][asset]['alternate']['s3']['href']
+                self.landsatlook_metadata_paths[asset] = self._feature['assets'][asset]['href']
 
-            # Build thumbnail list
-            self.thumbnail_small_urls[id] = feature['assets']['thumbnail']['href']
-            self.thumbnail_large_urls[id] = feature['assets']['reduced_resolution_browse']['href']
+            if 'qa_' in asset:
+
+                self.qa_list.append(self._feature['assets'][asset])
+                self.qa_names.append(self._feature['assets'][asset]['title'])
+                self.landsatlook_qa_paths[asset] = self._feature['assets'][asset]['href']
+                self.s3_qa_paths[asset] = self._feature['assets'][asset]['alternate']['s3']['href']
+            
+            if asset == 'thumbnail':
+                self.thumbnail = self._feature['assets'][asset]['href']
+
+            if 'eo:bands' in self._feature['assets'][asset]:
+
+                # Load band data
+                data = self._feature['assets'][asset]['eo:bands'][0]
+                band_num = data['name']
+                self.band_list.append(data)
+                self.band_names[band_num] = data['common_name']
+
+                # Load tiff urls
+                self.s3_tiff_paths[band_num] = self._feature['assets'][asset]['alternate']['s3']['href']
+                self.landsatlook_tiff_paths[band_num] = self._feature['assets'][asset]['href']
 
 
 if __name__ == '__main__':
