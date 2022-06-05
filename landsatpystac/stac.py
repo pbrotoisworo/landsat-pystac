@@ -1,32 +1,8 @@
 # Python file for navigating STAC spec data
-
-class STACResult:
-
-    def __init__(self, result: dict) -> None:
-        """
-        Access STAC search results.
-
-        Parameters
-        ----------
-        result: dict
-            Results of STAC search in dictionary format.
-
-        """
-        self.result = result
-        self.platform = None
-        self.scene_ids = []
-        self.ids = []
-        self.thumbnail_small_urls = {}
-        self.thumbnail_large_urls = {}
-        self.s3_urls = {}
-
-        # Load scene IDs
-        # These scene IDs will be used for other class methods
-        self.scene_ids = [x['properties']['landsat:scene_id'] for x in result['features']]
-        self.ids = [x['id'] for x in self.result['features']]
+from collections import Sequence
 
 
-class Feature:
+class Scene:
 
     def __init__(self, feature):
         """
@@ -35,9 +11,10 @@ class Feature:
 
         """
         self._feature = feature
-        
+
         # Attributes
         self.description = self._feature['description']
+        self.id = self._feature['id']
         self.bbox = self._feature['bbox']
         self.geometry = self._feature['geometry']
         self.timestamp = self._get_property('datetime')
@@ -76,6 +53,12 @@ class Feature:
         self.metadata_xml_path = None
         self.metadata_json_path = None
         self.load_assets()
+
+    def __str__(self):
+        return f'ID: {self.scene_id}\nTimestamp: {self.timestamp}'
+
+    def __repr__(self):
+        return f'ID: {self.scene_id}\nTimestamp: {self.timestamp}'
 
     def _get_property(self, attribute: str) -> str:
         """
@@ -132,6 +115,70 @@ class Feature:
                 # Load tiff urls
                 self.s3_tiff_paths[band_num] = self._feature['assets'][asset]['alternate']['s3']['href']
                 self.landsatlook_tiff_paths[band_num] = self._feature['assets'][asset]['href']
+
+
+class STACResult(Sequence):
+
+    def __init__(self, result):
+        """
+        Handle scenes from a STACResult as a single group.
+        `STACResult` is an interable sequence.
+
+        Parameters
+        ----------
+        result: dict
+            The result from `landsatpystac.search.Search() method`
+
+        """
+        self.result = result['features']
+        self.features = []
+        self._n = 0
+        for item in self.result:
+            self.features.append(Scene(item))
+
+        # Get properties
+        self.ids = [x.id for x in self.features]
+        self.scene_ids = [x.scene_id for x in self.features]
+
+    def __iter__(self):
+        """
+        Index for loop
+        
+        """
+        self._n = 0
+        return self
+
+    def __next__(self):
+        """
+        Logic for class iteration
+
+        """
+        if self._n < len(self.features):
+            if self._n + 1 != len(self.features):
+                self._n += 1
+            else:
+                raise StopIteration
+            return self.features[self._n]
+        else:
+            raise StopIteration
+
+    def __getitem__(self, index):
+        """
+        Make class indexable.
+
+        """
+        return self.features[index]
+
+    def __len__(self):
+        """
+        `len()` of class is based on number of scenes in
+        `self.features`.
+
+        """
+        return len(self.features)
+
+    def scene_ids(self):
+        return 
 
 
 if __name__ == '__main__':
