@@ -27,6 +27,7 @@ class JsonConstructor:
         """
         self.params = {}
         self._limit = limit
+        self._date_range = None
         self._wrs_path = None
         self._wrs_row = None
         self._cloud_cover_max = None
@@ -56,6 +57,8 @@ class JsonConstructor:
         json_out = {'limit': self._limit}
         if self._bbox:
             json_out['bbox'] = self._bbox
+        if self._date_range:
+            json_out['time'] = self._date_range
         query_label = 'query'
         json_out[query_label] = {}
 
@@ -107,6 +110,14 @@ class JsonConstructor:
             self._manual_json_params[k] = v
 
     @property
+    def date_range(self):
+        return self._date_range
+
+    @date_range.setter
+    def date_range(self, val):
+        self._date_range = val
+
+    @property
     def bbox(self):
         return self._bbox
 
@@ -120,7 +131,7 @@ class JsonConstructor:
 
     @collection.setter
     def collection(self, val):
-        valid = ['landsat-c2l1']
+        valid = ['landsat-c1l1', 'landsat-c2l1']
         if val not in valid:
             raise SearchError(f'Collection "{val}" not a valid collection.')
         self._collection = val
@@ -267,9 +278,8 @@ class Search:
 
     def __init__(self, limit=10, cloud_cover_max=100, wrs_path=None,
         wrs_row=None, image_shape=None, collection='landsat-c2l1',
-        scene_id=None, id=None, platform='LANDSAT_9', bbox=None,
-        **kwargs
-        ) -> None:
+        scene_id=None, id=None, platform=None, bbox=None,
+        date_range=None, **kwargs) -> None:
         """
         Instantiate a search object with the required search parameters.
         """
@@ -292,6 +302,8 @@ class Search:
             self.json_handler.scene_id = scene_id
         if id:
             self.json_handler.id = id
+        if date_range:
+            self.json_handler.date_range = date_range
         if bbox:
             if isinstance(bbox, str):
                 df = gpd.read_file(bbox)
