@@ -70,7 +70,10 @@ class Scene:
             Name of property to load.
 
         """
-        return self._feature['properties'][attribute]
+        try:
+            return self._feature['properties'][attribute]
+        except KeyError:
+            return None
 
     def load_assets(self):
         """
