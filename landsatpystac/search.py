@@ -36,6 +36,7 @@ class JsonConstructor:
         self._platform = None
         self._manual_json_params = {}
         self._bbox = None
+        self._correction = None
 
         # Properties that don't need error checking
         self._id = None
@@ -108,6 +109,15 @@ class JsonConstructor:
             self.json[k] = v
             # Save metadata in self._manual_json_params attr
             self._manual_json_params[k] = v
+
+    @property
+    def correction(self):
+        return self._correction
+
+    @correction.setter
+    def correction(self, val):
+        self._correction = val
+        self.params['landsat:correction'] = {'eq': val}
 
     @property
     def date_range(self):
@@ -279,7 +289,7 @@ class Search:
     def __init__(self, limit=10, cloud_cover_max=100, wrs_path=None,
         wrs_row=None, image_shape=None, collection='landsat-c2l1',
         scene_id=None, id=None, platform=None, bbox=None,
-        date_range=None, **kwargs) -> None:
+        date_range=None, correction='L1TP', **kwargs) -> None:
         """
         Instantiate a search object with the required search parameters.
         """
@@ -302,6 +312,8 @@ class Search:
             self.json_handler.scene_id = scene_id
         if id:
             self.json_handler.id = id
+        if correction:
+            self.json_handler.correction = correction
         if date_range:
             self.json_handler.date_range = date_range
         if bbox:
