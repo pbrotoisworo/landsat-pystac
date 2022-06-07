@@ -65,23 +65,18 @@ class JsonConstructor:
 
         if self._manual_json_params:
             for k, v in self._manual_json_params.items():
-                json_out[query_label][k] = v
+                if v:
+                    json_out[query_label][k] = v
 
         # Loop through class attributes
         for k, v in self.params.items():
-            json_out[query_label][k] = v
+            if v:
+                if isinstance(v, dict):
+                    # Target is when v is something like {"eq": "var"}
+                    if len(v.values()) == 1 and list(v.values())[0] is None:
+                        continue
+                json_out[query_label][k] = v
 
-
-        # skip_attrs = ['json']
-        # for k, v in self.__dict__.items():
-        #     # Class attrs to ignore or
-        #     # If exists through manual input then ignore
-        #     if k in skip_attrs or k in self.json.keys():
-        #         continue
-        #     # Ignore class attrs that are None
-        #     if not v:
-        #         continue
-        #     self.json[k] = v
         return json_out
         
     def set_metadata(self, metadata: dict) -> None:
@@ -147,17 +142,16 @@ class JsonConstructor:
         self._collection = val
 
     @property
-    def id(self):
-        return self._id
+    def scene_id(self):
+        return self._scene_id
 
-    @id.setter
-    def id(self, val):
+    @scene_id.setter
+    def scene_id(self, val):
         """
-        Set Landsat ID search param.
+        Set Landsat ID search param using scene ID.
         Sample ID: 'LC80300292022145LGN00'
-
         """
-        self._id = val
+        self._scene_id = val
         self.params['landsat:scene_id'] = {'eq': val}
 
     @property
@@ -288,7 +282,7 @@ class Search:
 
     def __init__(self, limit=10, cloud_cover_max=100, wrs_path=None,
         wrs_row=None, image_shape=None, collection='landsat-c2l1',
-        scene_id=None, id=None, platform=None, bbox=None,
+        scene_id=None, platform=None, bbox=None,
         date_range=None, correction='L1TP', **kwargs) -> None:
         """
         Instantiate a search object with the required search parameters.
@@ -310,8 +304,6 @@ class Search:
             self.json_handler.platform = platform
         if scene_id:
             self.json_handler.scene_id = scene_id
-        if id:
-            self.json_handler.id = id
         if correction:
             self.json_handler.correction = correction
         if date_range:
