@@ -31,12 +31,14 @@ class JsonConstructor:
         self._wrs_path = None
         self._wrs_row = None
         self._cloud_cover_max = None
-        self._image_shape = None
+        self._cloud_cover_land_max = None
         self._collection = None
         self._platform = None
         self._manual_json_params = {}
         self._bbox = None
         self._correction = None
+        self._sort_col = None
+        self._sort_order = None
 
         # Properties that don't need error checking
         self._id = None
@@ -78,6 +80,12 @@ class JsonConstructor:
                     elif len(v) > 1:
                         raise RuntimeError('Unexpected nested data.')
                 json_out[query_label][k] = v
+
+        # Add sorting
+        if self._sort_col:
+            json_out['sort'] = [{'field': self._sort_col}]
+            if self._sort_order:
+                json_out['sort'][0]['direction'] = self._sort_order
 
         return json_out
         
@@ -157,6 +165,24 @@ class JsonConstructor:
         self.params['landsat:scene_id'] = {'eq': val}
 
     @property
+    def sort_col(self):
+        return self._sort_col
+
+    @sort_col.setter
+    def sort_col(self, val):
+        self._sort_col = val
+
+    @property
+    def sort_order(self):
+        return self._sort_order
+
+    @sort_order.setter
+    def sort_order(self, val):
+        if val not in ['desc', 'asc'] and val is not None:
+            raise ValueError(f'Unsupported sort order "{val}".')
+        self._sort_order = val
+
+    @property
     def platform(self):
         return self._platform
 
@@ -170,20 +196,6 @@ class JsonConstructor:
         self.params['platform'] = {"eq": val}
 
     @property
-    def image_shape(self):
-        return self._image_shape
-    
-    @image_shape.setter
-    def image_shape(self, val: list):
-        """
-        Set filter for image shape
-        """
-        if not isinstance(val, list):
-            raise ValueError('Image shape requires a list with 2 integers as input.')
-        self._image_shape = {'proj:shape': val}
-        self.params['proj:shape'] = val
-
-    @property
     def cloud_cover_max(self):
         return self._cloud_cover_max
     
@@ -192,11 +204,23 @@ class JsonConstructor:
         """
         Set max cloud cover filter.
         """
-        check_if_int(val)
-        if val < 0 or val > 100:
-            raise ValueError('Cloud cover value is not an integer ranging from 0 and 100.')
-        self._cloud_cover_max = {'eo:cloud_cover': val}
-        self.params['eo:cloud_cover'] = val
+        if val != 100:
+            check_if_int(val)
+            if val < 0 or val > 100:
+                raise ValueError('Cloud cover value is not an integer ranging from 0 and 100.')
+            self._cloud_cover_max = {'eo:cloud_cover': val}
+            self.params['eo:cloud_cover'] = {"lt": val}
+
+    @property
+    def cloud_cover_land_max(self):
+        return self._cloud_cover_land_max
+
+    @cloud_cover_land_max.setter
+    def cloud_cover_land_max(self, val):
+        if val != 100:
+            check_if_int(val)
+            self._cloud_cover_land_max = val
+            self.params['landsat:cloud_cover_land'] = {"lt": val}
 
     @property
     def wrs_path(self):
@@ -208,6 +232,8 @@ class JsonConstructor:
         Set WRS Path filter. 
         """
         check_if_string(val)
+        # Ensure string is padded if not 3 char string
+        val = val.zfill(3)
 
         # Error checking
         # Generate a list of strings with zero padded numbers ranging from
@@ -218,7 +244,7 @@ class JsonConstructor:
         if val not in valid_vals:
             raise SearchError(f'Input WRS path {val} is invalid.')
         self._wrs_path = {'landsat:wrs_path': val}
-        self.params['landsat:wrs_path'] = val
+        self.params['landsat:wrs_path'] = {"eq": val}
 
     @property
     def wrs_row(self) -> str:
@@ -230,6 +256,8 @@ class JsonConstructor:
         Set WRS row filter.
         """
         check_if_string(val)
+        # Ensure string is padded if not 3 char string
+        val = val.zfill(3)
 
         # Error checking
         # Generate a list of strings with zero padded numbers ranging from
@@ -240,7 +268,7 @@ class JsonConstructor:
         if val not in valid_vals:
             raise SearchError(f'Input WRS row {val} is invalid.')
         self._wrs_row = {'landsat:wrs_row': val}
-        self.params['landsat:wrs_row'] = val
+        self.params['landsat:wrs_row'] = {"eq": val}
 
 
 def default_search_parameters(
@@ -282,10 +310,10 @@ def default_search_parameters(
 
 class Search:
 
-    def __init__(self, limit=10, cloud_cover_max=100, wrs_path=None,
-        wrs_row=None, image_shape=None, collection='landsat-c2l1',
-        scene_id=None, platform=None, bbox=None,
-        date_range=None, correction='L1TP', **kwargs) -> None:
+    def __init__(self, limit=10, cloud_cover_max=100, cloud_cover_land_max=100,
+        wrs_path=None, wrs_row=None, collection='landsat-c2l1', scene_id=None,
+        platform=None, bbox=None, date_range=None, correction='L1TP',
+        sort_col=None, sort_order=None, **kwargs) -> None:
         """
         Instantiate a search object with the required search parameters.
         """
@@ -294,6 +322,9 @@ class Search:
         self.response = None
 
         # Load search arguments
+        self.json_handler.sort_col = sort_col
+        self.json_handler.sort_order = sort_order
+        self.json_handler.cloud_cover_land_max = cloud_cover_land_max
         if cloud_cover_max:
             self.json_handler.cloud_cover_max = cloud_cover_max
         if wrs_path:
@@ -325,11 +356,8 @@ class Search:
             else:
                 raise ValueError('Unsupported input data for "bbox".')
 
-        if image_shape:
-            self.json_handler.image_shape = image_shape
-
     @property
-    def parameters(self):
+    def body(self):
         return self.json_handler.generate_json()
 
     def search(self, raise_error_if_failed=True) -> tuple:
@@ -350,6 +378,7 @@ class Search:
         """
         search_params = self.json_handler.generate_json()
         r = requests.post(url=self._URL_STAC_SEARCH, json=search_params)
+        print(self.body)
         if r.status_code != 200 and raise_error_if_failed:
             raise SearchError(f'POST request failed. Status code {r.status_code}')
         self.response = r.json()
