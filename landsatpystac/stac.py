@@ -133,15 +133,20 @@ class STACResult(Sequence):
             The result from `landsatpystac.search.Search() method`
 
         """
-        self.result = result['features']
+        self.result = result
         self.features = []
         self._n = 0
-        for item in self.result:
+        for item in self.result['features']:
             self.features.append(Scene(item))
 
-        # Get properties
+        # Metadata of results
+        self.meta = self.result['meta']
+
+        # Get list of properties from each scene
         self.ids = [x.id for x in self.features]
         self.scene_ids = [x.scene_id for x in self.features]
+        self.cloud_cover = [x.cloud_cover for x in self.features]
+        self.cloud_cover_land = [x.cloud_cover_land for x in self.features]
 
     def __iter__(self):
         """
@@ -179,9 +184,6 @@ class STACResult(Sequence):
 
         """
         return len(self.features)
-
-    def scene_ids(self):
-        return 
 
 
 if __name__ == '__main__':
