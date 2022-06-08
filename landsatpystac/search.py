@@ -73,8 +73,10 @@ class JsonConstructor:
             if v:
                 if isinstance(v, dict):
                     # Target is when v is something like {"eq": "var"}
-                    if len(v.values()) == 1 and list(v.values())[0] is None:
+                    if len(v) == 1 and list(v.values())[0] is None:
                         continue
+                    else:
+                        raise RuntimeError('Unexpected nested data.')
                 json_out[query_label][k] = v
 
         return json_out
