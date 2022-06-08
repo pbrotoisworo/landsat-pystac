@@ -75,7 +75,7 @@ class JsonConstructor:
                     # Target is when v is something like {"eq": "var"}
                     if len(v) == 1 and list(v.values())[0] is None:
                         continue
-                    else:
+                    elif len(v) > 1:
                         raise RuntimeError('Unexpected nested data.')
                 json_out[query_label][k] = v
 
