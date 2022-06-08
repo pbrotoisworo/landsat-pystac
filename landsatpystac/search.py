@@ -166,8 +166,8 @@ class JsonConstructor:
         'LANDSAT_5', 'LANDSAT_6', 'LANDSAT-7', 'LANDSAT_8', 'LANDSAT_9']
         if val not in valid:
             raise SearchError(f'Platform "{val}" not a valid platform.')
-        self._platform = {'platform': val}
-        self.params['platform'] = val
+        self._platform = val
+        self.params['platform'] = {"eq": val}
 
     @property
     def image_shape(self):
